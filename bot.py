@@ -17,6 +17,8 @@ from config import (
     STREAM_URL
 )
 
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -148,6 +150,18 @@ async def resume(_, message: Message):
     except Exception as error:
         logger.exception("Resume error")
         await message.reply_text(f"❌ Error: {error}")
+
+
+@app.on_message(filters.command("owner"))
+async def owner_handler(client, message):
+    await message.reply_text(
+        "👑 **BOT OWNER INFORMATION**\n\n"
+        "Owner: @KingofcursesX\n"
+        "🎧 Music Bot Support\n\n"
+        "➕ Add me to your Telegram group "
+        "and start a voice chat to enjoy music!\n\n"
+        "Use /help to see my commands."
+    )
 
 
 @bot.on_message(filters.command("stop") & filters.group)
