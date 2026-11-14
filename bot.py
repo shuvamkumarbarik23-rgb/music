@@ -17,10 +17,14 @@ from config import (
     STREAM_URL
 )
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+
 logger = logging.getLogger("sukuna-x-music")
 
-# Telegram command bot
+# Telegram bot
 bot = Client(
     "sukuna_bot",
     api_id=API_ID,
@@ -28,7 +32,7 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-# User account for voice chat
+# Assistant account for voice chat
 assistant = Client(
     "sukuna_assistant",
     api_id=API_ID,
@@ -41,7 +45,7 @@ calls = PyTgCalls(assistant)
 playing_chats = set()
 
 
-def is_owner(message):
+def is_owner(message: Message):
     return (
         message.from_user is not None
         and message.from_user.id == OWNER_ID
@@ -52,34 +56,50 @@ def is_owner(message):
 async def start(_, message: Message):
     await message.reply_text(
         "🎧 **SUKUNA X MUSIC**\n\n"
-        "Your music radio bot is online!\n\n"
+        "Welcome! Your radio bot is online.\n\n"
+        "🎵 Commands:\n"
         "/play - Start radio\n"
         "/pause - Pause radio\n"
         "/resume - Resume radio\n"
         "/stop - Stop radio\n"
-        "/ping - Check bot status"
+        "/ping - Check bot status\n"
+        "/help - Show commands"
+    )
+
+
+@bot.on_message(filters.command("help"))
+async def help_command(_, message: Message):
+    await message.reply_text(
+        "**🎵 SUKUNA X MUSIC HELP**\n\n"
+        "/play - Start radio\n"
+        "/pause - Pause radio\n"
+        "/resume - Resume radio\n"
+        "/stop - Stop radio\n"
+        "/ping - Check status"
     )
 
 
 @bot.on_message(filters.command("ping"))
 async def ping(_, message: Message):
-    await message.reply_text("🏓 Sukuna X Music is online!")
+    await message.reply_text(
+        "🏓 **Sukuna X Music is alive!**"
+    )
 
 
 @bot.on_message(filters.command("play") & filters.group)
 async def play(_, message: Message):
 
     if not is_owner(message):
-        return await message.reply_text("❌ Owner only command.")
-
-    if len(message.command) > 1:
         return await message.reply_text(
-            "This configuration supports radio streaming, "
-            "not song-name searching yet.\n"
-            "Use /play to start the radio."
+            "❌ Only the owner can control the radio."
         )
 
     chat_id = message.chat.id
+
+    if chat_id in playing_chats:
+        return await message.reply_text(
+            "🎶 Radio is already playing!"
+        )
 
     try:
         await calls.play(
@@ -93,67 +113,84 @@ async def play(_, message: Message):
             "🎶 **Sukuna X Music Radio Started!**"
         )
 
-    except Exception as e:
-        logger.exception("Play error")
-        await message.reply_text(f"❌ Error: {e}")
+    except Exception as error:
+        logger.exception("Radio playback error")
+        await message.reply_text(
+            f"❌ Playback failed: {error}"
+        )
 
 
 @bot.on_message(filters.command("pause") & filters.group)
 async def pause(_, message: Message):
 
     if not is_owner(message):
-        return await message.reply_text("❌ Owner only command.")
+        return await message.reply_text("❌ Owner only.")
 
     try:
         await calls.pause(message.chat.id)
         await message.reply_text("⏸ Radio paused.")
 
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    except Exception as error:
+        logger.exception("Pause error")
+        await message.reply_text(f"❌ Error: {error}")
 
 
 @bot.on_message(filters.command("resume") & filters.group)
 async def resume(_, message: Message):
 
     if not is_owner(message):
-        return await message.reply_text("❌ Owner only command.")
+        return await message.reply_text("❌ Owner only.")
 
     try:
         await calls.resume(message.chat.id)
         await message.reply_text("▶️ Radio resumed.")
 
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    except Exception as error:
+        logger.exception("Resume error")
+        await message.reply_text(f"❌ Error: {error}")
 
 
 @bot.on_message(filters.command("stop") & filters.group)
 async def stop(_, message: Message):
 
     if not is_owner(message):
-        return await message.reply_text("❌ Owner only command.")
+        return await message.reply_text("❌ Owner only.")
+
+    chat_id = message.chat.id
 
     try:
-        await calls.leave_call(message.chat.id)
-        playing_chats.discard(message.chat.id)
+        await calls.leave_call(chat_id)
+        playing_chats.discard(chat_id)
 
-        await message.reply_text("⏹ Radio stopped.")
+        await message.reply_text(
+            "⏹ **Radio stopped successfully!**"
+        )
 
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    except Exception as error:
+        logger.exception("Stop error")
+        await message.reply_text(f"❌ Error: {error}")
 
 
 async def main():
-    await bot.start()
-    await assistant.start()
-    await calls.start()
 
-    logger.info("Sukuna X Music started successfully!")
+    try:
+        await bot.start()
+        logger.info("Telegram bot started")
 
-    await idle()
+        await assistant.start()
+        logger.info("Assistant account started")
 
-    await calls.stop()
-    await assistant.stop()
-    await bot.stop()
+        await calls.start()
+        logger.info("PyTgCalls started")
+
+        print("SUKUNA X MUSIC IS RUNNING!")
+
+        await idle()
+
+    finally:
+        await calls.stop()
+        await assistant.stop()
+        await bot.stop()
 
 
 if __name__ == "__main__":
